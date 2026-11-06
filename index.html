@@ -1,31 +1,99 @@
-<style>.preload </style>
+<style>
+.preload {display:none;width:32px;height:32px;}
+#dbgbar {display:none;flex-direction:row;width:1280px;height:100px;background:#222;color:#fff;font:12px monospace;}
+#dbgtools {display:flex;flex-direction:column;flex:none;width:110px;}
+#dbgtools button {flex:1;}
+#dbglist {display:flex;flex-direction:row;flex:1;overflow-x:auto;overflow-y:hidden;}
+#dbglist div {flex:none;width:110px;height:100%;box-sizing:border-box;padding:6px;border-right:1px solid #555;cursor:pointer;}
+</style>
+<script>
+  let downloadedMaps = {};
+</script>
+<script src="map_content.js"></script>
+<div id="dbgbar">
+  <div id="dbgtools">
+    <button id="dbggizmo">Gizmo: Move</button>
+    <button id="dbgadd">Add Block</button>
+    <button id="dbgdel">Delete Block</button>
+  </div>
+  <div id="dbglist"></div>
+</div>
 
 <canvas id="content" width="1280" height="720"></canvas>
 
 <!-- temporary preload method-->
-<img id="worldcontent_jamtown" src="./src/game_content/world/bg/jamaa_township.webp" width="32" height="32" class="preload">
-<script>
-  let ctx = content.getContext('2d');
+<img id="worldbg_jamtown" src="./src/game_content/world/jamaa_township/bg.png" class="preload">
 
-  let sprites = {
+<img id="animal_runS_wolf" src="./src/game_content/char/wolf/run_s.png" class="preload">
+<img id="animal_runF_wolf" src="./src/game_content/char/wolf/run_f.png" class="preload">
+<img id="animal_runB_wolf" src="./src/game_content/char/wolf/run_b.png" class="preload">
+<img id="animal_idleS_wolf" src="./src/game_content/char/wolf/idle_f.png" class="preload">
+<img id="animal_idleF_wolf" src="./src/game_content/char/wolf/idle_f.png" class="preload">
+<img id="animal_idleB_wolf" src="./src/game_content/char/wolf/idle_b.png" class="preload">
+<img id="animal_mock_wolf" src="./src/game_content/char/wolf/mock.png" class="preload">
+<script defer>
+  let ctx = content.getContext('2d');
+  
+  let entities = {
     map:{
       world:{
-        "jam_town":{element:worldcontent_jamtown}
+        "jam_town":{element:worldbg_jamtown,w:1800,h:2260}
       }
-    }
+    },
+	animal:{
+	  "wolf":{
+	    dim:{w:400,h:225},
+		elements:{
+			"anim_run":{s:animal_runS_wolf,f:animal_runF_wolf,b:animal_runB_wolf},
+			"anim_idle":{f:animal_idleF_wolf,b:animal_idleB_wolf,s:animal_idleS_wolf}
+		}
+	  }
+	}
   };
+  
+  let sceneAnimals = {
+	'myUser':{
+		type:'wolf',
+		colors:['blue1','white'],
+		anim:'idle',
+		frame:0,
+		x:0,
+		y:0
+	}
+  };
+  
   function spriteify(srcElem,vec={x:0,y:0,w:100,h:100}){
+  if(srcElem.complete){
     ctx.drawImage(
       srcElem,
       vec.x,
       vec.y,
       vec.w,
       vec.h
-    );
+    );}else {
+	    ctx.fillStyle='magenta';
+		ctx.fillRect(vec.x,vec.y,vec.w,vec.h);
+	}
   };
+  
+  function drawAnimal(type,prop){
+	var toFrame = (frameColumn,frameRow) => {
+		let newX = (width*frameColumn)-width;
+		let newY = (height*frameRow)-height;
+		
+		draw(newX,newY);
+	};
+  }
 
   ///
+  let camera = {x:0,y:0,speed:1,zoom:1};
   let myState = {
+    currentRoom:'jam_town',
+	debugFrontProd:false,//TODO
+	debugBackAuth:false,//unfinished
+	debugAnimalColor:false,//unfinished
+	debugItemOverload:false,//unfinished
+	server:'Libre',
     playerName:'Only Jammer',
     gems:9999999,
     diamonds:9999999,
@@ -33,9 +101,29 @@
       cos:[],
       den:[]
     },
-    keyActivation:{w:false,a:false,S:false,d:false,mx:0,mx:0}
+	direction:'s',
+	lastMove:1000,
+    x:1090,
+    y:1317,
+    target:null,
+    keyActivation:{w:false,a:false,s:false,d:false,mx:0,my:0,down:false},
+    blocks:downloadedMaps['jamaa_township'].blocks,
+    selected:-1,
+    gizmo:'move',
+    drag:null
   };
 
+ 
+  function setMouse(e){
+  let r = content.getBoundingClientRect();
+  let cs = getComputedStyle(content);
+  let l = parseFloat(cs.borderLeftWidth)+parseFloat(cs.paddingLeft);
+  let t = parseFloat(cs.borderTopWidth)+parseFloat(cs.paddingTop);
+  let w = r.width-l-parseFloat(cs.borderRightWidth)-parseFloat(cs.paddingRight);
+  let h = r.height-t-parseFloat(cs.borderBottomWidth)-parseFloat(cs.paddingBottom);
+  myState.keyActivation.mx = (e.clientX-r.left-l)*content.width/w;
+  myState.keyActivation.my = (e.clientY-r.top-t)*content.height/h;
+}
   document.onkeydown = (e) => {
     if(Object.keys(myState.keyActivation).includes(e.key.toLowerCase())){
     myState.keyActivation[e.key.toLowerCase()]=true;}
@@ -44,9 +132,228 @@
     if(Object.keys(myState.keyActivation).includes(e.key.toLowerCase())){
     myState.keyActivation[e.key.toLowerCase()]=false;}
   };
+  document.onmousemove = setMouse;
+  content.onmousedown = (e) => {
+    if(e.button!==0)return;
+    setMouse(e);
+    myState.keyActivation.down=true;
+    if(!myState.debugFrontProd){
+      myState.target = screenToWorld(myState.keyActivation.mx,myState.keyActivation.my);
+    }
+  };
+  document.onmouseup = () => {
+    myState.keyActivation.down=false;
+  };
+  //////
+  //
+  function Collision(a,b){
+    return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y;
+  }
+
+  function clamp(v,lo,hi){
+    return Math.max(lo,Math.min(hi,v));
+  }
+
+  function mapOffset(){
+    return {x:-camera.x,y:-camera.y};
+  }
+
+  function screenToWorld(x,y){
+    return {x:x/camera.zoom+camera.x,y:y/camera.zoom+camera.y};
+  }
+
+  function screenRect(b,o){
+    return {x:b.x+o.x,y:b.y+o.y,w:b.w,h:b.h};
+  }
+
+  function handleRect(b,o){
+    return {x:b.x+o.x+b.w-6,y:b.y+o.y+b.h-6,w:12,h:12};
+  }
+
+  function blocked(px,py){
+    let p = {x:px-50,y:py-20,w:100,h:40};
+    return myState.blocks.some(b=>Collision(p,b));
+  }
+
+  function moveCamera(){
+    let st = myState;
+    let k = st.keyActivation;
+    let cr = entities.map['world'][st.currentRoom];
+    let vx = (k['d']?1:0)-(k['a']?1:0);
+    let vy = (k['s']?1:0)-(k['w']?1:0);
+    let arrived = false;
+
+    if(vx||vy){
+      st.target = null;
+      let len = Math.hypot(vx,vy);
+      vx = vx/len*camera.speed;
+      vy = vy/len*camera.speed;
+    }else if(st.target){
+      let tx = st.target.x-st.x;
+      let ty = st.target.y-st.y;
+      let d = Math.hypot(tx,ty);
+      if(d<=camera.speed){
+        vx = tx;
+        vy = ty;
+        arrived = true;
+      }else{
+        vx = tx/d*camera.speed;
+        vy = ty/d*camera.speed;
+      }
+    }
+
+    let ox = st.x;
+    let oy = st.y;
+    let stuck = blocked(st.x,st.y);
+    let nx = clamp(st.x+vx,50,cr.w-50);
+    let ny = clamp(st.y+vy,20,cr.h-20);
+    if(vx && (stuck || !blocked(nx,st.y)))st.x = nx;
+    if(vy && (stuck || !blocked(st.x,ny)))st.y = ny;
+    if(st.target && (arrived || (st.x===ox && st.y===oy)))st.target = null;
+let vw = content.width/camera.zoom;
+let vh = content.height/camera.zoom;
+camera.x = clamp(st.x-vw/2,0,Math.max(0,cr.w-vw));
+camera.y = clamp(st.y-53-vh/2,0,Math.max(0,cr.h-vh));
+  }
+
+  function blockLabel(i,b){
+    return '#'+i+' x:'+Math.round(b.x)+' y:'+Math.round(b.y)+' w:'+Math.round(b.w)+' h:'+Math.round(b.h);
+  }
+
+  function refreshList(){
+    dbglist.innerHTML='';
+    myState.blocks.forEach((b,i)=>{
+      let item = document.createElement('div');
+      item.textContent = blockLabel(i,b);
+      item.style.background = i===myState.selected?'#a33':'transparent';
+      item.onclick = () => selectBlock(i);
+      dbglist.appendChild(item);
+    });
+    if(dbglist.children[myState.selected])dbglist.children[myState.selected].scrollIntoView({inline:'nearest',block:'nearest'});
+  }
+
+  function selectBlock(i){
+    myState.selected = i;
+    refreshList();
+  }
+
+  dbggizmo.onclick = () => {
+    myState.gizmo = myState.gizmo==='move'?'scale':'move';
+    dbggizmo.textContent = 'Gizmo: '+(myState.gizmo==='move'?'Move':'Scale');
+  };
+  dbgadd.onclick = () => {
+    let center = screenToWorld(content.width/2,content.height/2);
+    myState.blocks.push({x:center.x-50,y:center.y-50,w:100,h:100});
+    selectBlock(myState.blocks.length-1);
+  };
+  dbgdel.onclick = () => {
+    if(!myState.blocks[myState.selected])return;
+    myState.blocks.splice(myState.selected,1);
+    myState.selected = -1;
+    refreshList();
+  };
+  refreshList();
+
+  function editBlocks(){
+    let st = myState;
+    let k = st.keyActivation;
+    let mouse = screenToWorld(k.mx,k.my);
+    let m = {x:mouse.x,y:mouse.y,w:1/camera.zoom,h:1/camera.zoom};
+
+    if(k.down && !st.drag){
+      let sel = st.blocks[st.selected];
+      if(sel && st.gizmo==='scale' && Collision(m,handleRect(sel,{x:0,y:0}))){
+        st.drag = {mode:'scale',ox:mouse.x,oy:mouse.y,orig:{...sel}};
+      }else{
+        for(let i=st.blocks.length-1;i>=0;i--){
+          if(Collision(m,st.blocks[i])){
+            selectBlock(i);
+            st.drag = {mode:st.gizmo==='move'?'move':'select',ox:mouse.x,oy:mouse.y,orig:{...st.blocks[i]}};
+            break;
+          }
+        }
+      }
+    }
+
+    if(!k.down)st.drag = null;
+
+    let cur = st.blocks[st.selected];
+    if(st.drag && cur){
+      let dx = mouse.x-st.drag.ox;
+      let dy = mouse.y-st.drag.oy;
+      if(st.drag.mode==='move'){
+        cur.x = st.drag.orig.x+dx;
+        cur.y = st.drag.orig.y+dy;
+      }
+      if(st.drag.mode==='scale'){
+        cur.w = Math.max(10,st.drag.orig.w+dx);
+        cur.h = Math.max(10,st.drag.orig.h+dy);
+      }
+      if(st.drag.mode!=='select' && dbglist.children[st.selected])dbglist.children[st.selected].textContent = blockLabel(st.selected,cur);
+    }
+
+    st.blocks.forEach((b,i)=>{
+      let r = {x:b.x-camera.x,y:b.y-camera.y,w:b.w,h:b.h};
+      ctx.fillStyle = 'rgba(255,0,0,0.5)';
+      ctx.fillRect(r.x*camera.zoom,r.y*camera.zoom,r.w*camera.zoom,r.h*camera.zoom);
+      if(i===st.selected){
+        ctx.strokeStyle = 'white';
+        ctx.strokeRect(r.x*camera.zoom,r.y*camera.zoom,r.w*camera.zoom,r.h*camera.zoom);
+        ctx.fillStyle = 'white';
+        if(st.gizmo==='scale'){
+          let h = handleRect(b,{x:-camera.x,y:-camera.y});
+          ctx.fillRect(h.x*camera.zoom,h.y*camera.zoom,h.w*camera.zoom,h.h*camera.zoom);
+        }else{
+          ctx.fillRect((r.x+r.w/2-4)*camera.zoom,(r.y+r.h/2-4)*camera.zoom,8,8);
+        }
+      }
+    });
+  }
+
+  function toRoom(roomName){
+	if(Object.keys(downloadedMaps).length > 1){
+		
+	}
+  }
   function draw(){
+	let st = myState;
+	ctx.clearRect(0,0,content.width,content.height);
+	
+	moveCamera();
+	
+	let cr = entities.map['world'][st.currentRoom];
+	let o = mapOffset();
+	
+	spriteify(
+		cr.element,
+		{x:o.x*camera.zoom,y:o.y*camera.zoom,w:cr.w*camera.zoom,h:cr.h*camera.zoom}
+	);
     
-    
+	Object.keys(sceneAnimals).forEach(animalId => {
+		let thisAnimal = sceneAnimals[animalId];
+		if(animalId == 'myUser'){
+			thisAnimal.x = st.x;
+			thisAnimal.y = st.y;
+		}
+		
+		spriteify(
+				animal_mock_wolf,
+				{
+					x:(thisAnimal.x-135+o.x)*camera.zoom,
+					y:(thisAnimal.y-125+o.y)*camera.zoom,
+					w:270*camera.zoom,h:145*camera.zoom
+				}
+			);
+	});
+	
+	
+	dbgbar.style.display = st.debugFrontProd?'flex':'none';
+	if(st.debugFrontProd){
+		editBlocks();
+	}else{
+		st.drag = null;
+	}
+	
     setTimeout(draw,2);
   }
   draw();
