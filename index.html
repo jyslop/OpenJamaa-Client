@@ -1,0 +1,54 @@
+<style>.preload </style>
+
+<canvas id="content" width="1280" height="720"></canvas>
+
+<!-- temporary preload method-->
+<img id="worldcontent_jamtown" src="./src/game_content/world/bg/jamaa_township.webp" width="32" height="32" class="preload">
+<script>
+  let ctx = content.getContext('2d');
+
+  let sprites = {
+    map:{
+      world:{
+        "jam_town":{element:worldcontent_jamtown}
+      }
+    }
+  };
+  function spriteify(srcElem,vec={x:0,y:0,w:100,h:100}){
+    ctx.drawImage(
+      srcElem,
+      vec.x,
+      vec.y,
+      vec.w,
+      vec.h
+    );
+  };
+
+  ///
+  let myState = {
+    playerName:'Only Jammer',
+    gems:9999999,
+    diamonds:9999999,
+    items:{
+      cos:[],
+      den:[]
+    },
+    keyActivation:{w:false,a:false,S:false,d:false,mx:0,mx:0}
+  };
+
+  document.onkeydown = (e) => {
+    if(Object.keys(myState.keyActivation).includes(e.key.toLowerCase())){
+    myState.keyActivation[e.key.toLowerCase()]=true;}
+  };
+  document.onkeyup = (e) => {
+    if(Object.keys(myState.keyActivation).includes(e.key.toLowerCase())){
+    myState.keyActivation[e.key.toLowerCase()]=false;}
+  };
+  function draw(){
+    
+    
+    setTimeout(draw,2);
+  }
+  draw();
+  
+</script>
