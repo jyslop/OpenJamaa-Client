@@ -6,6 +6,7 @@
 #dbglist {display:flex;flex-direction:row;flex:1;overflow-x:auto;overflow-y:hidden;}
 #dbglist div {flex:none;width:110px;height:100%;box-sizing:border-box;padding:6px;border-right:1px solid #555;cursor:pointer;}
 </style>
+
 <script>
   let downloadedMaps = {};
 </script>
@@ -20,6 +21,14 @@
 </div>
 
 <canvas id="content" width="1280" height="720"></canvas>
+<h4 style="color:gray;max-width:400px;">
+By using OpenJamaa, you agree that you are 16+. Sexual activity, discussion of substances and
+ distribution of illegal material is prohibited. Racial slurs and discrimination will NOT be tolerated.
+Google account info is processed GOOGLE'S SERVER, not our server. We only recieve your account age from Google.
+If you're paranoid, just check our github :). Additionally, this project is not supported, promoted, or endorsed by
+Wildworks and the Animal Jam team, in ANY form. This product is not intended or designed as a profitable competitor
+ to any existing service.
+</h4>
 
 <!-- temporary preload method-->
 <img id="worldbg_jamtown" src="./src/game_content/world/jamaa_township/bg.png" class="preload">
@@ -76,14 +85,7 @@
 	}
   };
   
-  function drawAnimal(type,prop){
-	var toFrame = (frameColumn,frameRow) => {
-		let newX = (width*frameColumn)-width;
-		let newY = (height*frameRow)-height;
-		
-		draw(newX,newY);
-	};
-  }
+
 
   ///
   let camera = {x:0,y:0,speed:1,zoom:1};
@@ -158,6 +160,7 @@
     return {x:-camera.x,y:-camera.y};
   }
 
+  // Mouse coordinates are canvas pixels; editor geometry is in world coordinates.
   function screenToWorld(x,y){
     return {x:x/camera.zoom+camera.x,y:y/camera.zoom+camera.y};
   }
@@ -315,6 +318,8 @@ camera.y = clamp(st.y-53-vh/2,0,Math.max(0,cr.h-vh));
 		
 	}
   }
+  
+  let animationTick = 0;
   function draw(){
 	let st = myState;
 	ctx.clearRect(0,0,content.width,content.height);
@@ -335,8 +340,13 @@ camera.y = clamp(st.y-53-vh/2,0,Math.max(0,cr.h-vh));
 			thisAnimal.x = st.x;
 			thisAnimal.y = st.y;
 		}
-		
-		spriteify(
+		if(thisAnimal.anim == 'run_s'){
+			let runFrames = [[1,1],[2,1],[3,1],[1,2],[2,2],[3,2],[1,3],[2,3]];
+			let newX = (width*frameColumn)-width;
+			let newY = (height*frameRow)-height;
+			
+		} else {
+			spriteify(
 				animal_mock_wolf,
 				{
 					x:(thisAnimal.x-135+o.x)*camera.zoom,
@@ -344,6 +354,14 @@ camera.y = clamp(st.y-53-vh/2,0,Math.max(0,cr.h-vh));
 					w:270*camera.zoom,h:145*camera.zoom
 				}
 			);
+		}
+		var toFrame = (frameColumn,frameRow) => {
+			let newX = (width*frameColumn)-width;
+			let newY = (height*frameRow)-height;
+		
+			draw(newX,newY);
+		};
+	
 	});
 	
 	
@@ -354,6 +372,7 @@ camera.y = clamp(st.y-53-vh/2,0,Math.max(0,cr.h-vh));
 		st.drag = null;
 	}
 	
+	animationTick+=2;
     setTimeout(draw,2);
   }
   draw();
